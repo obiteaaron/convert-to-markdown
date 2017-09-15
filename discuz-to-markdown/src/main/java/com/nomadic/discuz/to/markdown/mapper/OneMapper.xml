@@ -5,11 +5,48 @@
 <mapper namespace="com.nomadic.discuz.to.markdown.mapper.OneMapper">
 
     <resultMap id="postMap" type="com.nomadic.discuz.to.markdown.domain.Post">
+        <result column="tid" property="tid"/>
+        <result column="fid" property="fid"/>
+        <result column="first" property="first"/>
+        <result column="position" property="position"/>
+        <result column="dateline" property="dateline"/>
         <result column="subject" property="subject"/>
         <result column="message" property="message"/>
     </resultMap>
+    <resultMap id="attachmentMap" type="com.nomadic.discuz.to.markdown.domain.Attachment">
+        <result column="aid" property="aid"/>
+        <result column="tid" property="tid"/>
+        <result column="pid" property="pid"/>
+        <result column="filename" property="filename"/>
+        <result column="filesize" property="filesize"/>
+        <result column="attachment" property="attachment"/>
+        <result column="description" property="description"/>
+    </resultMap>
 
     <select id="getPosts" resultMap="postMap">
-        SELECT subject,message FROM bbs_forum_post
+        SELECT tid,fid,first,position,dateline,subject,message FROM bbs_forum_post WHERE authorid=2
     </select>
+    <select id="getAllAttach" resultMap="attachmentMap">
+        SELECT * FROM (
+            SELECT aid,tid,pid,filename,filesize,attachment,description FROM bbs_forum_attachment_0 WHERE uid=2
+            UNION
+            SELECT aid,tid,pid,filename,filesize,attachment,description FROM bbs_forum_attachment_1 WHERE uid=2
+            UNION
+            SELECT aid,tid,pid,filename,filesize,attachment,description FROM bbs_forum_attachment_2 WHERE uid=2
+            UNION
+            SELECT aid,tid,pid,filename,filesize,attachment,description FROM bbs_forum_attachment_3 WHERE uid=2
+            UNION
+            SELECT aid,tid,pid,filename,filesize,attachment,description FROM bbs_forum_attachment_4 WHERE uid=2
+            UNION
+            SELECT aid,tid,pid,filename,filesize,attachment,description FROM bbs_forum_attachment_5 WHERE uid=2
+            UNION
+            SELECT aid,tid,pid,filename,filesize,attachment,description FROM bbs_forum_attachment_6 WHERE uid=2
+            UNION
+            SELECT aid,tid,pid,filename,filesize,attachment,description FROM bbs_forum_attachment_7 WHERE uid=2
+            UNION
+            SELECT aid,tid,pid,filename,filesize,attachment,description FROM bbs_forum_attachment_8 WHERE uid=2
+            UNION
+            SELECT aid,tid,pid,filename,filesize,attachment,description FROM bbs_forum_attachment_9 WHERE uid=2
+        ) t ORDER BY aid
+ </select>
 </mapper>

@@ -1,5 +1,6 @@
 package com.nomadic.discuz.to.markdown;
 
+import com.nomadic.discuz.to.markdown.domain.Attachment;
 import com.nomadic.discuz.to.markdown.domain.Post;
 import com.nomadic.discuz.to.markdown.mapper.OneMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,10 @@ public class DiscuzToMarkdown {
         List<Post> stringList = oneMapper.getPosts();
         for (Post s : stringList) {
             System.out.println(s.getSubject());
+        }
+        List<Attachment> allAttach = oneMapper.getAllAttach();
+        for (Attachment attachment : allAttach) {
+            System.out.println(attachment.getFilename() + " " + attachment.getAttachment() + " " + attachment.getDescription());
         }
     }
 }
