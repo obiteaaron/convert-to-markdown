@@ -11,7 +11,7 @@
 
     <artifactId>discuz-to-markdown</artifactId>
 
-    <description>读discuz数据库，将文章内容转换成markdown文件，支持版本 Discuz! X3.2 Release 20140603 </description>
+    <description>读discuz数据库，将文章内容转换成markdown文件，支持版本 Discuz! X3.2 Release 20140603</description>
 
     <dependencies>
         <dependency>
@@ -31,6 +31,18 @@
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
             <version>6.0.5</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
         </dependency>
     </dependencies>
 

@@ -1,8 +1,13 @@
 package com.nomadic.discuz.to.markdown;
 
+import com.nomadic.discuz.to.markdown.convert.PostParser;
+import com.nomadic.discuz.to.markdown.convert.PostWriter;
 import com.nomadic.discuz.to.markdown.domain.Attachment;
 import com.nomadic.discuz.to.markdown.domain.Post;
 import com.nomadic.discuz.to.markdown.mapper.OneMapper;
+import org.apache.commons.collections4.Closure;
+import org.apache.commons.collections4.IterableUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -14,14 +19,27 @@ public class DiscuzToMarkdown {
     @Autowired
     private OneMapper oneMapper;
 
+
     public void convert() {
         List<Post> stringList = oneMapper.getPosts();
-        for (Post s : stringList) {
-            System.out.println(s.getSubject());
-        }
         List<Attachment> allAttach = oneMapper.getAllAttach();
-        for (Attachment attachment : allAttach) {
-            System.out.println(attachment.getFilename() + " " + attachment.getAttachment() + " " + attachment.getDescription());
+
+        for (Post post : stringList) {
+            PostParser postParser = new PostParser(post, allAttach);
+            postParser.parse();
+            String result = postParser.getResult();
+
+            String content = "# " + post.getSubject() + "\n" + result;
+            PostWriter.write(content, postParser.getDictionary(), postParser.getFileName());
+
+            List<ImmutablePair<String, String>> attachmentList = postParser.getAttachmentList();
+            IterableUtils.forEach(attachmentList, new Closure<ImmutablePair<String, String>>() {
+                @Override
+                public void execute(ImmutablePair<String, String> pair) {
+                    PostWriter.copy(pair.getLeft(), pair.getRight());
+                }
+            });
+
         }
     }
 }
