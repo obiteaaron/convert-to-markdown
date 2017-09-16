@@ -56,6 +56,8 @@ public class PostWriter {
     }
 
     public static String replaceCRLFToLF(String content) {
-        return content.replace("\r\n", "\n");
+        return content.replace("\r\n", "\n")
+                // 两个空格加换行，才是gitlab里面的换行，唉~
+                .replace("\n", "  \n");
     }
 }
