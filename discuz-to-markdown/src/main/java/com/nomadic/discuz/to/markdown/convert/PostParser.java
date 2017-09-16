@@ -78,7 +78,7 @@ public class PostParser {
             Attachment attachment = allAttachMap.get(Long.valueOf(match));
 
             String imgExt = attachment.getAttachment().substring(attachment.getAttachment().lastIndexOf("."));
-            String imageFileName = fileName.substring(0, fileName.length() - 3) + IMG_SPLIT + String.format("%03d", attachmentList.size()) + imgExt;
+            String imageFileName = fileName.substring(0, fileName.length() - 3) + IMG_SPLIT + String.format("%03d", attachmentList.size() + 1) + imgExt;
             String targetAttachment = new File(dictionary, imageFileName).getPath();
 
             String markdownImg = String.format("![%s](%s)", attachment.getFilename(), imageFileName);
