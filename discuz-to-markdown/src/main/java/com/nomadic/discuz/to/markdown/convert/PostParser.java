@@ -23,10 +23,14 @@ public class PostParser {
     private static final String IMG_SPLIT = "_img_";
     private static final String FILE_NAME_POST = ".md";
 
-    private static final String tag_attach = "attach";
+    private static final String TAG_ATTACH = "attach";
+    private static final String TAG_I_START = "i=s";
+    private static final String TAG_I_END = "i";
 
-    private static final String REGEX = "\\[(%s*?)\\](.*?)\\[/%s\\]";
-    private static final Pattern PATTERN_TAG_ATTACH = Pattern.compile(String.format(REGEX, tag_attach, tag_attach), Pattern.CASE_INSENSITIVE);
+    private static final String REGEX = "\\[(%s.*?)\\](.*?)\\[/%s\\]";
+
+    private static final Pattern PATTERN_TAG_ATTACH = Pattern.compile(String.format(REGEX, TAG_ATTACH, TAG_ATTACH), Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_TAG_I = Pattern.compile(String.format(REGEX, TAG_I_START, TAG_I_END), Pattern.CASE_INSENSITIVE);
 
     private static Map<String, Integer> sequence = new HashMap<>();
 
@@ -53,8 +57,10 @@ public class PostParser {
     }
 
     public PostParser parse() {
+        result = post.getMessage();
         parseFileName();
         parseAttach();
+        parseI();
         return this;
     }
 
@@ -70,7 +76,6 @@ public class PostParser {
     }
 
     public void parseAttach() {
-        String result = post.getMessage();
         Matcher matcher = PATTERN_TAG_ATTACH.matcher(result);
         while (matcher.find()) {
             String matchAll = matcher.group();
@@ -82,12 +87,22 @@ public class PostParser {
             String targetAttachment = new File(dictionary, imageFileName).getPath();
 
             String markdownImg = String.format("![%s](%s)", attachment.getFilename(), imageFileName);
-            System.out.println(targetAttachment);
+
+            TraceLogger.LOGGER.info(String.format("attachement %s --> %s", attachment.getAttachment(), targetAttachment));
             result = result.replace(matchAll, markdownImg);
 
             attachmentList.add(ImmutablePair.of(attachment.getAttachment(), targetAttachment));
         }
-        this.result = result;
+    }
+
+    public void parseI() {
+        Matcher matcher = PATTERN_TAG_I.matcher(result);
+        while (matcher.find()) {
+            String matchAll = matcher.group();
+            String match = matcher.group(2);
+            System.out.println(match);
+            result = result.replace(matchAll, "");
+        }
     }
 
     public String getDictionary() {

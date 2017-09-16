@@ -24,7 +24,7 @@
     </resultMap>
 
     <select id="getPosts" resultMap="postMap">
-        SELECT tid,fid,first,position,dateline,subject,message FROM bbs_forum_post WHERE authorid=2
+        SELECT tid,fid,first,position,dateline,subject,message FROM bbs_forum_post WHERE authorid=2 ORDER BY pid
     </select>
     <select id="getAllAttach" resultMap="attachmentMap">
         SELECT * FROM (
