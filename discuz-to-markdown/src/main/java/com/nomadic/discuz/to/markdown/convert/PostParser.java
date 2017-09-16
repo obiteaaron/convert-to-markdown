@@ -55,6 +55,7 @@ public class PostParser {
     };
     private String dictionary;
     private String fileName;
+    private String subject;
     private String result;
 
     private List<ImmutablePair<String, String>> attachmentList = new ArrayList<>();
@@ -64,6 +65,7 @@ public class PostParser {
 
     public PostParser(Post post, List<Attachment> allAttach) {
         this.post = post;
+        subject = post.getSubject();
         result = post.getMessage();
         IterableUtils.forEach(allAttach, attachment -> {
             if (allAttachMap == null) {
@@ -380,6 +382,10 @@ public class PostParser {
 
     public String getFileName() {
         return fileName;
+    }
+
+    public String getSubject() {
+        return subject;
     }
 
     public String getResult() {
