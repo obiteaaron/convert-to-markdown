@@ -4,6 +4,7 @@ import com.nomadic.discuz.to.markdown.domain.Attachment;
 import com.nomadic.discuz.to.markdown.domain.Post;
 import com.nomadic.discuz.to.markdown.util.TraceLogger;
 import org.apache.commons.collections4.IterableUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.FastDateFormat;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 
@@ -19,7 +20,7 @@ import java.util.regex.Pattern;
 public class PostParser {
 
 
-    private static final String REGEX = "\\[%s(.*?)\\](.*?)\\[/%s\\]";
+    private static final String REGEX = "\\[%s(.*?)\\]([\\s\\S]*?)\\[/%s\\]";
 
     private List<Parser> parsers = new LinkedList<Parser>() {
         {
@@ -27,6 +28,29 @@ public class PostParser {
             add(new AttachmentParser(PostParser.this));
             add(new IParser(PostParser.this));
             add(new UrlParser(PostParser.this));
+
+            int i = 2;
+            while (i-- > 0) {
+                // 顺序不同，可能结果不同
+                add(new RemoveTagParser(RemoveTagParser.TAG_I, PostParser.this));
+                add(new RemoveTagParser(RemoveTagParser.TAG_BACKCOLOR, PostParser.this));
+                add(new RemoveTagParser(RemoveTagParser.TAG_FONT, PostParser.this));
+                add(new RemoveTagParser(RemoveTagParser.TAG_B, PostParser.this));
+                add(new RemoveTagParser(RemoveTagParser.TAG_SIZE, PostParser.this));
+                add(new RemoveTagParser(RemoveTagParser.TAG_COLOR, PostParser.this));
+                add(new RemoveTagParser(RemoveTagParser.TAG_ALIGN, PostParser.this));
+                add(new RemoveTagParser(RemoveTagParser.TAG_INDENT, PostParser.this));
+                add(new RemoveTagParser(RemoveTagParser.TAG_P, PostParser.this));
+                add(new RemoveTagParser(RemoveTagParser.TAG_IMG, PostParser.this));
+                add(new RemoveTagParser(RemoveTagParser.TAG_LIST, PostParser.this));
+            }
+
+            add(new CodeParser(PostParser.this));
+            add(new TableParser(PostParser.this));
+
+            add(new SimpleReplaceParser("\n---", "\n\n---", PostParser.this));
+            add(new SimpleReplaceParser("[*]", "", PostParser.this));
+
         }
     };
     private String dictionary;
@@ -105,7 +129,12 @@ public class PostParser {
                 String imageFileName = postParser.fileName.substring(0, postParser.fileName.length() - 3) + IMG_SPLIT + String.format("%03d", postParser.attachmentList.size() + 1) + imgExt;
                 String targetAttachment = new File(postParser.dictionary, imageFileName).getPath();
 
-                String markdownImg = String.format("![%s](%s)", attachment.getFilename(), imageFileName);
+                String template = "![%s](%s)";
+                if (imgExt.equals(".zip")) {
+                    template = template.substring(1);
+                }
+
+                String markdownImg = String.format(template, attachment.getFilename(), imageFileName);
 
                 TraceLogger.LOGGER.info(String.format("attachement %s --> %s", attachment.getAttachment(), targetAttachment));
                 postParser.result = postParser.result.replace(matchAll, markdownImg);
@@ -141,6 +170,7 @@ public class PostParser {
         private static final String TAG_URL_START = "url=";
         private static final String TAG_URL_END = "url";
         private static final Pattern PATTERN_TAG_URL = Pattern.compile(String.format(REGEX, TAG_URL_START, TAG_URL_END), Pattern.CASE_INSENSITIVE);
+        private static final Pattern PATTERN_TAG_URL2 = Pattern.compile(String.format(REGEX, TAG_URL_END, TAG_URL_END), Pattern.CASE_INSENSITIVE);
 
         private static final String TEMPLATE = "[%s](%s)";
 
@@ -160,6 +190,187 @@ public class PostParser {
                 TraceLogger.LOGGER.info("[url replace] " + matchAll + " --> " + markdownUrl);
                 postParser.result = postParser.result.replace(matchAll, markdownUrl);
             }
+
+            matcher = PATTERN_TAG_URL2.matcher(postParser.result);
+            while (matcher.find()) {
+                String matchAll = matcher.group();
+                String text = matcher.group(2);
+                String markdownUrl = String.format(TEMPLATE, text, text);
+                TraceLogger.LOGGER.info("[url replace] " + matchAll + " --> " + markdownUrl);
+                postParser.result = postParser.result.replace(matchAll, markdownUrl);
+            }
+        }
+    }
+
+    private static class RemoveTagParser implements Parser {
+        private static final String TAG_FONT = "font";
+        private static final String TAG_B = "b";
+        private static final String TAG_SIZE = "size";
+        private static final String TAG_COLOR = "color";
+        private static final String TAG_ALIGN = "align";
+        private static final String TAG_INDENT = "indent";
+        private static final String TAG_P = "p";
+        private static final String TAG_BACKCOLOR = "backcolor";
+        private static final String TAG_IMG = "img";
+        private static final String TAG_LIST = "list";
+        private static final String TAG_I = "i";
+
+        private Pattern PATTERN_TAG;
+
+        private String tag;
+
+        private PostParser postParser;
+
+        private RemoveTagParser(String tag, PostParser postParser) {
+            this.postParser = postParser;
+            this.tag = tag;
+            PATTERN_TAG = Pattern.compile(String.format(REGEX, tag, tag), Pattern.CASE_INSENSITIVE);
+        }
+
+        public void parse() {
+            Matcher matcher = PATTERN_TAG.matcher(postParser.result);
+            while (matcher.find()) {
+                String matchAll = matcher.group();
+                String tag = matcher.group(1);
+                String text = matcher.group(2);
+                TraceLogger.LOGGER.info("[font tag delete] ");
+                // 只保留文字
+                postParser.result = postParser.result.replace(matchAll, text);
+            }
+        }
+    }
+
+    private static class CodeParser implements Parser {
+        private static final String TAG_START = "mw_shl_code";
+        private static final String TAG_END = "mw_shl_code";
+        private static final Pattern PATTERN_TAG = Pattern.compile(String.format(REGEX, TAG_START, TAG_END), Pattern.CASE_INSENSITIVE);
+
+        private static final String TEMPLATE = "\n```\n%s\n```\n";
+
+        private PostParser postParser;
+
+        private CodeParser(PostParser postParser) {
+            this.postParser = postParser;
+        }
+
+        public void parse() {
+            Matcher matcher = PATTERN_TAG.matcher(postParser.result);
+            while (matcher.find()) {
+                String matchAll = matcher.group();
+                String tag = matcher.group(1);
+                String text = matcher.group(2);
+                String markdownUrl = String.format(TEMPLATE, text);
+                TraceLogger.LOGGER.info("[code replace] " + matchAll + " --> " + markdownUrl);
+                postParser.result = postParser.result.replace(matchAll, markdownUrl);
+            }
+        }
+    }
+
+    private static class TableParser implements Parser {
+
+        private static final Pattern PATTERN_TAG_TABLE = Pattern.compile(String.format(REGEX, "table", "table"), Pattern.CASE_INSENSITIVE);
+        private static final Pattern PATTERN_TAG_TR = Pattern.compile(String.format(REGEX, "tr", "tr"), Pattern.CASE_INSENSITIVE);
+        private static final Pattern PATTERN_TAG_TD = Pattern.compile(String.format(REGEX, "td", "td"), Pattern.CASE_INSENSITIVE);
+        private static final Pattern PATTERN_TAG_TH = Pattern.compile(String.format(REGEX, "th", "th"), Pattern.CASE_INSENSITIVE);
+
+        private static final String TEMPLATE = "\n```\n%s\n```\n";
+
+        private PostParser postParser;
+
+        private TableParser(PostParser postParser) {
+            this.postParser = postParser;
+        }
+
+        public void parse() {
+
+
+            Matcher tableMatcher = PATTERN_TAG_TABLE.matcher(postParser.result);
+            // 匹配到表格
+            while (tableMatcher.find()) {
+
+                TraceLogger.LOGGER.info(String.format("blog %s has table", postParser.fileName));
+
+                // 存储最大的列数据，用于生成表头
+                int maxCol = 0;
+                // 将行的数据存储起来，用于最后生成表格
+                List<List<String>> trList = new LinkedList<>();
+
+                String matchAll = tableMatcher.group();
+                String text = tableMatcher.group(2);
+
+                Matcher trMatcher = PATTERN_TAG_TR.matcher(text);
+                // 匹配到行tr
+                while (trMatcher.find()) {
+                    String trText = trMatcher.group(2);
+                    Matcher thMatcher = PATTERN_TAG_TH.matcher(trText);
+                    if (thMatcher.find()) {
+                        System.out.println("不支持，打断点");
+                    }
+                    List<String> tdList = new LinkedList<>();
+                    Matcher tdMatcher = PATTERN_TAG_TD.matcher(trText);
+                    // 匹配到列td
+                    while (tdMatcher.find()) {
+                        String tdText = tdMatcher.group(2);
+                        if (StringUtils.isNotBlank(tdText)) {
+                            // 避免和markdown语法冲突
+                            tdList.add(tdText.replace("|", "&#124;")
+                                    .replace("\r\n", "")
+                                    .replace("\n", ""));
+                            System.out.println("");
+                        }
+                    }
+                    if (tdList.size() > 0) {
+                        trList.add(tdList);
+                    }
+                    maxCol = maxCol > tdList.size() ? maxCol : tdList.size();
+                }
+
+                List<String> markdownTable = new LinkedList<>();
+
+                // 生成表头，由于获取不到表头，生成空表头
+                String[] heads = new String[maxCol];
+                Arrays.fill(heads, "None");
+                String head = StringUtils.join("|", StringUtils.join(heads, "|"), "|");
+                markdownTable.add(head);
+
+                // 生成分割符行
+                String[] headSplits = new String[maxCol];
+                Arrays.fill(headSplits, "-");
+                String headSplit = StringUtils.join("|", StringUtils.join(headSplits, "|"), "|");
+                markdownTable.add(headSplit);
+
+                // 生成每行数据
+                for (List<String> strings : trList) {
+                    String[] lines = new String[strings.size()];
+                    Arrays.fill(lines, "%s");
+                    String line = StringUtils.join("|", StringUtils.join(lines, "|"), "|");
+
+                    String lineString = String.format(line, strings.toArray());
+                    markdownTable.add(lineString);
+                }
+                // 生成最终表格数据
+                String lineResult = StringUtils.join("\n\n", StringUtils.join(markdownTable, "\n"), "\n\n");
+
+                TraceLogger.LOGGER.info("[table replace] " + matchAll + " --> " + lineResult);
+                postParser.result = postParser.result.replace(matchAll, lineResult);
+            }
+        }
+    }
+
+    private static class SimpleReplaceParser implements Parser {
+
+        private PostParser postParser;
+        private String source;
+        private String target;
+
+        private SimpleReplaceParser(String source, String target, PostParser postParser) {
+            this.source = source;
+            this.target = target;
+            this.postParser = postParser;
+        }
+
+        public void parse() {
+            postParser.result = postParser.result.replace(source, target);
         }
     }
 
