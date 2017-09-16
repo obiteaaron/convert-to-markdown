@@ -3,7 +3,6 @@ package com.nomadic.discuz.to.markdown.convert;
 import com.nomadic.discuz.to.markdown.domain.Attachment;
 import com.nomadic.discuz.to.markdown.domain.Post;
 import com.nomadic.discuz.to.markdown.util.TraceLogger;
-import org.apache.commons.collections4.Closure;
 import org.apache.commons.collections4.IterableUtils;
 import org.apache.commons.lang3.time.FastDateFormat;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -19,21 +18,17 @@ import java.util.regex.Pattern;
  */
 public class PostParser {
 
-    private static final String SPLIT = "_";
-    private static final String IMG_SPLIT = "_img_";
-    private static final String FILE_NAME_POST = ".md";
 
-    private static final String TAG_ATTACH = "attach";
-    private static final String TAG_I_START = "i=s";
-    private static final String TAG_I_END = "i";
+    private static final String REGEX = "\\[%s(.*?)\\](.*?)\\[/%s\\]";
 
-    private static final String REGEX = "\\[(%s.*?)\\](.*?)\\[/%s\\]";
-
-    private static final Pattern PATTERN_TAG_ATTACH = Pattern.compile(String.format(REGEX, TAG_ATTACH, TAG_ATTACH), Pattern.CASE_INSENSITIVE);
-    private static final Pattern PATTERN_TAG_I = Pattern.compile(String.format(REGEX, TAG_I_START, TAG_I_END), Pattern.CASE_INSENSITIVE);
-
-    private static Map<String, Integer> sequence = new HashMap<>();
-
+    private List<Parser> parsers = new LinkedList<Parser>() {
+        {
+            add(new FilenameParser(PostParser.this));
+            add(new AttachmentParser(PostParser.this));
+            add(new IParser(PostParser.this));
+            add(new UrlParser(PostParser.this));
+        }
+    };
     private String dictionary;
     private String fileName;
     private String result;
@@ -45,63 +40,126 @@ public class PostParser {
 
     public PostParser(Post post, List<Attachment> allAttach) {
         this.post = post;
-        IterableUtils.forEach(allAttach, new Closure<Attachment>() {
-            @Override
-            public void execute(Attachment attachment) {
-                if (allAttachMap == null) {
-                    allAttachMap = new HashMap<>();
-                }
-                allAttachMap.put(attachment.getAid(), attachment);
+        result = post.getMessage();
+        IterableUtils.forEach(allAttach, attachment -> {
+            if (allAttachMap == null) {
+                allAttachMap = new HashMap<>();
             }
+            allAttachMap.put(attachment.getAid(), attachment);
         });
     }
 
-    public PostParser parse() {
-        result = post.getMessage();
-        parseFileName();
-        parseAttach();
-        parseI();
-        return this;
-    }
-
-    private void parseFileName() {
-
-        long dateline = post.getDateline();
-        dictionary = FastDateFormat.getInstance("yyyyMM").format(new Date(dateline * 1000));
-        String fileNamePrefix = FastDateFormat.getInstance("yyyyMMdd").format(new Date(dateline * 1000));
-        Integer index = (sequence.get(fileNamePrefix) == null ? 1 : sequence.get(fileNamePrefix) + 1);
-        fileName = fileNamePrefix + SPLIT + String.format("%02d", index) + FILE_NAME_POST;
-        sequence.put(fileNamePrefix, index);
-        TraceLogger.LOGGER.info("filename is " + dictionary + "/" + fileName);
-    }
-
-    public void parseAttach() {
-        Matcher matcher = PATTERN_TAG_ATTACH.matcher(result);
-        while (matcher.find()) {
-            String matchAll = matcher.group();
-            String match = matcher.group(2);
-            Attachment attachment = allAttachMap.get(Long.valueOf(match));
-
-            String imgExt = attachment.getAttachment().substring(attachment.getAttachment().lastIndexOf("."));
-            String imageFileName = fileName.substring(0, fileName.length() - 3) + IMG_SPLIT + String.format("%03d", attachmentList.size() + 1) + imgExt;
-            String targetAttachment = new File(dictionary, imageFileName).getPath();
-
-            String markdownImg = String.format("![%s](%s)", attachment.getFilename(), imageFileName);
-
-            TraceLogger.LOGGER.info(String.format("attachement %s --> %s", attachment.getAttachment(), targetAttachment));
-            result = result.replace(matchAll, markdownImg);
-
-            attachmentList.add(ImmutablePair.of(attachment.getAttachment(), targetAttachment));
+    public void parse() {
+        for (Parser parser : parsers) {
+            parser.parse();
         }
     }
 
-    public void parseI() {
-        Matcher matcher = PATTERN_TAG_I.matcher(result);
-        while (matcher.find()) {
-            String matchAll = matcher.group();
-            String match = matcher.group(2);
-            System.out.println(match);
-            result = result.replace(matchAll, "");
+    private interface Parser {
+
+        void parse();
+    }
+
+    private static class FilenameParser implements Parser {
+
+        private static final String SPLIT = "_";
+        private static final String FILE_NAME_POST = ".md";
+
+        private static final Map<String, Integer> SEQUENCE = new HashMap<>();
+
+        private PostParser postParser;
+
+        private FilenameParser(PostParser postParser) {
+            this.postParser = postParser;
+        }
+
+        public void parse() {
+            long dateline = postParser.post.getDateline();
+            postParser.dictionary = FastDateFormat.getInstance("yyyyMM").format(new Date(dateline * 1000));
+            String fileNamePrefix = FastDateFormat.getInstance("yyyyMMdd").format(new Date(dateline * 1000));
+            Integer index = (SEQUENCE.get(fileNamePrefix) == null ? 1 : SEQUENCE.get(fileNamePrefix) + 1);
+            postParser.fileName = fileNamePrefix + SPLIT + String.format("%02d", index) + FILE_NAME_POST;
+            SEQUENCE.put(fileNamePrefix, index);
+            TraceLogger.LOGGER.info("filename is " + postParser.dictionary + "/" + postParser.fileName);
+        }
+    }
+
+    private static class AttachmentParser implements Parser {
+        private static final String IMG_SPLIT = "_img_";
+        private static final String TAG_ATTACH = "attach";
+        private static final Pattern PATTERN_TAG_ATTACH = Pattern.compile(String.format(REGEX, TAG_ATTACH, TAG_ATTACH), Pattern.CASE_INSENSITIVE);
+        private PostParser postParser;
+
+        private AttachmentParser(PostParser postParser) {
+            this.postParser = postParser;
+        }
+
+        public void parse() {
+            Matcher matcher = PATTERN_TAG_ATTACH.matcher(postParser.result);
+            while (matcher.find()) {
+                String matchAll = matcher.group();
+                String match = matcher.group(2);
+                Attachment attachment = postParser.allAttachMap.get(Long.valueOf(match));
+
+                String imgExt = attachment.getAttachment().substring(attachment.getAttachment().lastIndexOf("."));
+                String imageFileName = postParser.fileName.substring(0, postParser.fileName.length() - 3) + IMG_SPLIT + String.format("%03d", postParser.attachmentList.size() + 1) + imgExt;
+                String targetAttachment = new File(postParser.dictionary, imageFileName).getPath();
+
+                String markdownImg = String.format("![%s](%s)", attachment.getFilename(), imageFileName);
+
+                TraceLogger.LOGGER.info(String.format("attachement %s --> %s", attachment.getAttachment(), targetAttachment));
+                postParser.result = postParser.result.replace(matchAll, markdownImg);
+
+                postParser.attachmentList.add(ImmutablePair.of(attachment.getAttachment(), targetAttachment));
+            }
+        }
+    }
+
+    private static class IParser implements Parser {
+        private static final String TAG_I_START = "i=s";
+        private static final String TAG_I_END = "i";
+        private static final Pattern PATTERN_TAG_I = Pattern.compile(String.format(REGEX, TAG_I_START, TAG_I_END), Pattern.CASE_INSENSITIVE);
+
+        private PostParser postParser;
+
+        private IParser(PostParser postParser) {
+            this.postParser = postParser;
+        }
+
+        public void parse() {
+            Matcher matcher = PATTERN_TAG_I.matcher(postParser.result);
+            while (matcher.find()) {
+                String matchAll = matcher.group();
+                String match = matcher.group(2);
+                TraceLogger.LOGGER.info("delete content " + matchAll);
+                postParser.result = postParser.result.replace(matchAll, "");
+            }
+        }
+    }
+
+    private static class UrlParser implements Parser {
+        private static final String TAG_URL_START = "url=";
+        private static final String TAG_URL_END = "url";
+        private static final Pattern PATTERN_TAG_URL = Pattern.compile(String.format(REGEX, TAG_URL_START, TAG_URL_END), Pattern.CASE_INSENSITIVE);
+
+        private static final String TEMPLATE = "[%s](%s)";
+
+        private PostParser postParser;
+
+        private UrlParser(PostParser postParser) {
+            this.postParser = postParser;
+        }
+
+        public void parse() {
+            Matcher matcher = PATTERN_TAG_URL.matcher(postParser.result);
+            while (matcher.find()) {
+                String matchAll = matcher.group();
+                String url = matcher.group(1);
+                String text = matcher.group(2);
+                String markdownUrl = String.format(TEMPLATE, text, url);
+                TraceLogger.LOGGER.info("[url replace] " + matchAll + " --> " + markdownUrl);
+                postParser.result = postParser.result.replace(matchAll, markdownUrl);
+            }
         }
     }
 
