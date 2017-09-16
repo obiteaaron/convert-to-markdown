@@ -12,10 +12,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Component
 public class DiscuzToMarkdown {
@@ -45,7 +42,7 @@ public class DiscuzToMarkdown {
         }
 
         // 用于生成README.md文件
-        Map<String, List<PostParser>> blogMap = new HashMap<>();
+        Map<String, List<PostParser>> blogMap = new LinkedHashMap<>();
         // 处理
         for (Post post : postMap.values()) {
             PostParser postParser = new PostParser(post, allAttach);
@@ -56,12 +53,7 @@ public class DiscuzToMarkdown {
             PostWriter.write(content, postParser.getDictionary(), postParser.getFileName());
 
             List<ImmutablePair<String, String>> attachmentList = postParser.getAttachmentList();
-            IterableUtils.forEach(attachmentList, new Closure<ImmutablePair<String, String>>() {
-                @Override
-                public void execute(ImmutablePair<String, String> pair) {
-                    PostWriter.copy(pair.getLeft(), pair.getRight());
-                }
-            });
+            IterableUtils.forEach(attachmentList, pair -> PostWriter.copy(pair.getLeft(), pair.getRight()));
 
             // 按目录分组
             List<PostParser> list = blogMap.computeIfAbsent(postParser.getDictionary(), k -> new LinkedList<>());
