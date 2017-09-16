@@ -34,7 +34,7 @@ public class PostWriter {
         File file = new File(new File(GLOBAL_FILE_PATH, path), fileName);
         try {
             TraceLogger.LOGGER.info("write file " + file.getPath());
-            IOUtils.write(content, new FileOutputStream(file), "UTF-8");
+            IOUtils.write(replaceCRLFToLF(content), new FileOutputStream(file), "UTF-8");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -53,5 +53,9 @@ public class PostWriter {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static String replaceCRLFToLF(String content) {
+        return content.replace("\r\n", "\n");
     }
 }
